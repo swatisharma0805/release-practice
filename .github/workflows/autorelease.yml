@@ -1,0 +1,51 @@
+name: 🚀 Auto Release and Changelog
+
+on:
+  push:
+    branches:
+      - main  # Trigger this workflow only when code is pushed to main
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Generate Next Version Number
+        id: version
+        run: |
+          # Fetch all tags
+          git fetch --tags
+          # Find the latest version tag (or default to v1.0.0)
+          latest_tag=$(git tag | sort -V | tail -n1)
+          if [ -z "$latest_tag" ]; then
+            new_tag="v1.0.0"
+          else
+            base=${latest_tag#v}
+            IFS='.' read -r major minor patch <<< "$base"
+            patch=$((patch + 1))
+            new_tag="v${major}.${minor}.${patch}"
+          fi
+          echo "new_tag=$new_tag" >> $GITHUB_OUTPUT
+
+      - name: Generate Changelog
+        id: changelog
+        uses: mikepenz/release-changelog-builder-action@v4
+        with:
+          configuration: ""
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.new_tag }}
+          name: "Release ${{ steps.version.outputs.new_tag }}"
+          body: ${{ steps.changelog.outputs.changelog }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
